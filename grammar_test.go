@@ -1,6 +1,9 @@
 package expr
 
-import "testing"
+import (
+	"fmt"
+	"testing"
+)
 
 func TestTokenize(t *testing.T) {
 	// TODO write actual tests
@@ -54,5 +57,20 @@ func TestParse(t *testing.T) {
 		} else if n := e.Eval(); n != result {
 			t.Error(n, result)
 		}
+	}
+}
+
+func TestExprString(t *testing.T) {
+	env := map[string]Var{
+		"x": NewVarExpr(5),
+	}
+	funcs := map[string]Func{
+		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+			return args[0].Eval() + 1
+		}),
+	}
+	e, _ := Parse("-2+plusone(x)", env, funcs)
+	if s := fmt.Sprintf("%v", e); s != "fn[<8>(<1>(#2), fn[{5}])]" {
+		t.Error(e)
 	}
 }
