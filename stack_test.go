@@ -25,7 +25,7 @@ func TestStringStack(t *testing.T) {
 	if s.Pop() != "foo" {
 		t.Error()
 	}
-	if s.Pop() != "" {
+	if s.Pop() != "" || s.Peek() != "" {
 		t.Error()
 	}
 	if s.Pop() != "" {
@@ -55,7 +55,7 @@ func TestExprStack(t *testing.T) {
 	}
 	s.Pop()
 	s.Pop()
-	if s.Pop() != nil {
+	if s.Pop() != nil || s.Peek() != nil {
 		t.Error()
 	}
 	if s.Pop() != nil {
