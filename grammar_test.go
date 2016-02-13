@@ -91,6 +91,27 @@ func TestParse(t *testing.T) {
 	}
 }
 
+func TestParseError(t *testing.T) {
+	env := map[string]Var{}
+	funcs := map[string]Func{
+		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+			return args[0].Eval() + 1
+		}),
+	}
+	for input, e := range map[string]error{
+		"(":   ErrParen,
+		")":   ErrParen,
+		"2=3": ErrBadAssignment,
+		"2@3": ErrBadOp,
+
+		"plusone": ErrBadCall,
+	} {
+		if expr, err := Parse(input, env, funcs); err != e {
+			t.Error(e, err, expr)
+		}
+	}
+}
+
 func TestExprString(t *testing.T) {
 	env := map[string]Var{
 		"x": NewVarExpr(5),

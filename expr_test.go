@@ -82,33 +82,33 @@ func TestUnaryExpr(t *testing.T) {
 
 func TestBinaryExpr(t *testing.T) {
 	for e, res := range map[Expr]Num{
-		newBinaryExpr(multiply, &constExpr{9}, &constExpr{4}):  36,
-		newBinaryExpr(divide, &constExpr{9}, &constExpr{4}):    9 / 4.0,
-		newBinaryExpr(remainder, &constExpr{9}, &constExpr{4}): 1,
+		&binaryExpr{multiply, &constExpr{9}, &constExpr{4}}:  36,
+		&binaryExpr{divide, &constExpr{9}, &constExpr{4}}:    9 / 4.0,
+		&binaryExpr{remainder, &constExpr{9}, &constExpr{4}}: 1,
 
-		newBinaryExpr(plus, &constExpr{5}, &constExpr{3}):  8,
-		newBinaryExpr(minus, &constExpr{9}, &constExpr{4}): 5,
+		&binaryExpr{plus, &constExpr{5}, &constExpr{3}}:  8,
+		&binaryExpr{minus, &constExpr{9}, &constExpr{4}}: 5,
 
-		newBinaryExpr(shl, &constExpr{5}, &constExpr{1}): 10,
-		newBinaryExpr(shr, &constExpr{9}, &constExpr{1}): 4,
+		&binaryExpr{shl, &constExpr{5}, &constExpr{1}}: 10,
+		&binaryExpr{shr, &constExpr{9}, &constExpr{1}}: 4,
 
-		newBinaryExpr(lessThan, &constExpr{5}, &constExpr{5}):        0,
-		newBinaryExpr(lessOrEquals, &constExpr{9}, &constExpr{9}):    1,
-		newBinaryExpr(greaterThan, &constExpr{5}, &constExpr{3}):     1,
-		newBinaryExpr(greaterOrEquals, &constExpr{9}, &constExpr{4}): 1,
-		newBinaryExpr(equals, &constExpr{5}, &constExpr{3}):          0,
-		newBinaryExpr(equals, &constExpr{5}, NewVarExpr(5)):          1,
-		newBinaryExpr(notEquals, &constExpr{9}, &constExpr{0}):       1,
-		newBinaryExpr(notEquals, &constExpr{5}, NewVarExpr(5)):       0,
+		&binaryExpr{lessThan, &constExpr{5}, &constExpr{5}}:        0,
+		&binaryExpr{lessOrEquals, &constExpr{9}, &constExpr{9}}:    1,
+		&binaryExpr{greaterThan, &constExpr{5}, &constExpr{3}}:     1,
+		&binaryExpr{greaterOrEquals, &constExpr{9}, &constExpr{4}}: 1,
+		&binaryExpr{equals, &constExpr{5}, &constExpr{3}}:          0,
+		&binaryExpr{equals, &constExpr{5}, NewVarExpr(5)}:          1,
+		&binaryExpr{notEquals, &constExpr{9}, &constExpr{0}}:       1,
+		&binaryExpr{notEquals, &constExpr{5}, NewVarExpr(5)}:       0,
 
-		newBinaryExpr(bitwiseAnd, &constExpr{10}, &constExpr{7}): 2,
-		newBinaryExpr(bitwiseOr, &constExpr{9}, &constExpr{4}):   13,
-		newBinaryExpr(bitwiseXor, &constExpr{9}, &constExpr{2}):  11,
+		&binaryExpr{bitwiseAnd, &constExpr{10}, &constExpr{7}}: 2,
+		&binaryExpr{bitwiseOr, &constExpr{9}, &constExpr{4}}:   13,
+		&binaryExpr{bitwiseXor, &constExpr{9}, &constExpr{2}}:  11,
 
-		newBinaryExpr(logicalAnd, &constExpr{9}, &constExpr{4}): 1,
-		newBinaryExpr(logicalOr, &constExpr{9}, &constExpr{4}):  1,
+		&binaryExpr{logicalAnd, &constExpr{9}, &constExpr{4}}: 1,
+		&binaryExpr{logicalOr, &constExpr{9}, &constExpr{4}}:  1,
 
-		newBinaryExpr(assign, NewVarExpr(0), &constExpr{4}): 4,
+		&binaryExpr{assign, NewVarExpr(0), &constExpr{4}}: 4,
 	} {
 		if n := e.Eval(); n != res {
 			t.Error(n, res)

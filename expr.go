@@ -10,6 +10,15 @@ import (
 
 type Num float64
 
+var (
+	ErrBadCall        = errors.New("function call expected")
+	ErrBadAssignment  = errors.New("variable expected in assignment")
+	ErrBadOp          = errors.New("unknown operator or function")
+	ErrBadVar         = errors.New("invalid variable name")
+	ErrOperandMissing = errors.New("missing operand")
+	ErrParen          = errors.New("parenthesis mismatch")
+)
+
 // Supported arithmetic operations
 type arithOp int
 
@@ -188,13 +197,13 @@ type binaryExpr struct {
 	b  Expr
 }
 
-func newBinaryExpr(op arithOp, a, b Expr) Expr {
+func newBinaryExpr(op arithOp, a, b Expr) (Expr, error) {
 	if op == assign {
 		if _, ok := a.(*varExpr); !ok {
-			panic("variable expected")
+			return nil, ErrBadAssignment
 		}
 	}
-	return &binaryExpr{op: op, a: a, b: b}
+	return &binaryExpr{op: op, a: a, b: b}, nil
 }
 
 func (e *binaryExpr) Eval() (res Num) {
@@ -319,7 +328,7 @@ func tokenize(input []rune) (tokens []string, err error) {
 				}
 			}
 			if lastOp == "" {
-				return nil, errors.New("Unknown operator " + string(tok))
+				return nil, ErrBadOp
 			}
 		}
 		tokens = append(tokens, string(tok))
@@ -389,17 +398,25 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				os.Push("(")
 				es.Push(nil)
 			} else if expectArgs {
-				return nil, errors.New("argument list expected")
+				return nil, ErrBadCall
 			} else if token == ")" {
 				for len(os) > 0 && os.Peek() != "(" {
-					es.Push(bind(os.Pop(), funcs, &es))
+					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
+						return nil, err
+					} else {
+						es.Push(expr)
+					}
 				}
 				if len(os) == 0 {
-					panic("parens mismatched")
+					return nil, ErrParen
 				}
 				os.Pop()
 				if len(os) > 0 && funcs[os.Peek()] != nil {
-					es.Push(bind(os.Pop(), funcs, &es))
+					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
+						return nil, err
+					} else {
+						es.Push(expr)
+					}
 				} else {
 					es.Push(lastArgFunc.Bind(parseArgs(&es)))
 				}
@@ -412,15 +429,23 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				expectArgs = true
 			} else if token == "," {
 				for len(os) > 0 && os.Peek() != "(" {
-					es.Push(bind(os.Pop(), funcs, &es))
+					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
+						return nil, err
+					} else {
+						es.Push(expr)
+					}
 				}
 				if len(os) == 0 {
-					panic("parse error for function")
+					return nil, ErrParen
 				}
 			} else if op, ok := ops[token]; ok {
 				o2 := os.Peek()
 				for ops[o2] != 0 && ((isLeftAssoc(op) && op >= ops[o2]) || op > ops[o2]) {
-					es.Push(bind(o2, funcs, &es))
+					if expr, err := bind(o2, funcs, &es); err != nil {
+						return nil, err
+					} else {
+						es.Push(expr)
+					}
 					os.Pop()
 					o2 = os.Peek()
 				}
@@ -429,7 +454,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				// Variable
 				for _, c := range []rune(token) {
 					if !unicode.IsLetter(c) && !unicode.IsNumber(c) && c != '_' {
-						panic("bad variable name")
+						return nil, ErrBadVar
 					}
 				}
 				if v, ok := vars[token]; ok {
@@ -444,12 +469,16 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 		for len(os) > 0 {
 			op := os.Pop()
 			if op == "(" || op == ")" {
-				panic("mispatched parens")
+				return nil, ErrParen
 			}
 			if _, ok := ops[op]; !ok {
-				panic("unknown operator or function " + op)
+				return nil, ErrBadOp
 			}
-			es.Push(bind(op, funcs, &es))
+			if expr, err := bind(op, funcs, &es); err != nil {
+				return nil, err
+			} else {
+				es.Push(expr)
+			}
 		}
 		if len(es) == 0 {
 			return &constExpr{}, nil
@@ -460,19 +489,21 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 	}
 }
 
-func bind(name string, funcs map[string]Func, stack *exprStack) Expr {
+func bind(name string, funcs map[string]Func, stack *exprStack) (Expr, error) {
 	if f, ok := funcs[name]; ok {
-		return f.Bind(parseArgs(stack))
+		return f.Bind(parseArgs(stack)), nil
 	} else if op, ok := ops[name]; ok {
 		if isUnary(op) {
-			return newUnaryExpr(op, stack.Pop())
-		} else {
+			return newUnaryExpr(op, stack.Pop()), nil
+		} else if len(*stack) >= 2 {
 			b := stack.Pop()
 			a := stack.Pop()
 			return newBinaryExpr(op, a, b)
+		} else {
+			return nil, ErrOperandMissing
 		}
 	} else {
-		panic("Unknown operator or function " + name)
+		return nil, ErrBadOp
 	}
 }
 
