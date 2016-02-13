@@ -11,12 +11,12 @@ import (
 type Num float64
 
 var (
-	ErrBadCall        = errors.New("function call expected")
-	ErrBadAssignment  = errors.New("variable expected in assignment")
-	ErrBadOp          = errors.New("unknown operator or function")
-	ErrBadVar         = errors.New("invalid variable name")
-	ErrOperandMissing = errors.New("missing operand")
-	ErrParen          = errors.New("parenthesis mismatch")
+	ErrBadCall         = errors.New("function call expected")
+	ErrBadAssignment   = errors.New("variable expected in assignment")
+	ErrBadOp           = errors.New("unknown operator or function")
+	ErrOperandMissing  = errors.New("missing operand")
+	ErrOperatorMissing = errors.New("missing operator")
+	ErrParen           = errors.New("parenthesis mismatch")
 )
 
 // Supported arithmetic operations
@@ -263,7 +263,7 @@ func (e *binaryExpr) String() string {
 
 func tokenize(input []rune) (tokens []string, err error) {
 	pos := 0
-	expectOp := true
+	expectVal := true
 	for pos < len(input) {
 		tok := []rune{}
 		c := input[pos]
@@ -272,7 +272,10 @@ func tokenize(input []rune) (tokens []string, err error) {
 			continue
 		}
 		if unicode.IsNumber(c) {
-			expectOp = false
+			if !expectVal {
+				return nil, ErrOperandMissing
+			}
+			expectVal = false
 			for (c == '.' || unicode.IsNumber(c)) && pos < len(input) {
 				tok = append(tok, input[pos])
 				pos++
@@ -284,17 +287,20 @@ func tokenize(input []rune) (tokens []string, err error) {
 			}
 		} else if c == '-' {
 			// Minus, unary or binary
-			if expectOp {
-				expectOp = false
+			if expectVal {
+				expectVal = true
 				tok = append(tok, '-', 'u')
 			} else {
-				expectOp = true
+				expectVal = true
 				tok = append(tok, '-')
 			}
 			pos++
 		} else if unicode.IsLetter(c) {
-			expectOp = false
-			for unicode.IsLetter(c) || unicode.IsNumber(c) && pos < len(input) {
+			if !expectVal {
+				return nil, ErrOperandMissing
+			}
+			expectVal = false
+			for unicode.IsLetter(c) || unicode.IsNumber(c) || c == '_' && pos < len(input) {
 				tok = append(tok, input[pos])
 				pos++
 				if pos < len(input) {
@@ -304,14 +310,14 @@ func tokenize(input []rune) (tokens []string, err error) {
 				}
 			}
 		} else if c == '(' || c == ')' || c == ',' {
-			expectOp = (c == '(' || c == ',')
+			expectVal = (c == '(' || c == ',')
 			tok = append(tok, c)
 			pos++
 		} else {
-			expectOp = true
+			expectVal = true
 			var lastOp string
 			for !unicode.IsLetter(c) && !unicode.IsNumber(c) && !unicode.IsSpace(c) &&
-				c != '(' && c != ')' && c != ',' && c != '-' && pos < len(input) {
+				c != '_' && c != '(' && c != ')' && c != ',' && c != '-' && pos < len(input) {
 				if _, ok := ops[string(tok)+string(input[pos])]; ok {
 					tok = append(tok, input[pos])
 					lastOp = string(tok)
@@ -413,6 +419,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				os.Pop()
 				if len(os) > 0 && funcs[os.Peek()] != nil {
 					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
+						// Should never happen XXX why?
 						return nil, err
 					} else {
 						es.Push(expr)
@@ -436,6 +443,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 					}
 				}
 				if len(os) == 0 {
+					// Should never happen as long as we wrap input string in extra parenthesis
 					return nil, ErrParen
 				}
 			} else if op, ok := ops[token]; ok {
@@ -452,11 +460,6 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				os.Push(token)
 			} else {
 				// Variable
-				for _, c := range []rune(token) {
-					if !unicode.IsLetter(c) && !unicode.IsNumber(c) && c != '_' {
-						return nil, ErrBadVar
-					}
-				}
 				if v, ok := vars[token]; ok {
 					es.Push(v)
 				} else {
@@ -471,9 +474,6 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 			if op == "(" || op == ")" {
 				return nil, ErrParen
 			}
-			if _, ok := ops[op]; !ok {
-				return nil, ErrBadOp
-			}
 			if expr, err := bind(op, funcs, &es); err != nil {
 				return nil, err
 			} else {
@@ -481,6 +481,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 			}
 		}
 		if len(es) == 0 {
+			// Should never happen as long as we wrap input in extra parenthesis
 			return &constExpr{}, nil
 		} else {
 			e := es.Pop()
@@ -494,15 +495,21 @@ func bind(name string, funcs map[string]Func, stack *exprStack) (Expr, error) {
 		return f.Bind(parseArgs(stack)), nil
 	} else if op, ok := ops[name]; ok {
 		if isUnary(op) {
-			return newUnaryExpr(op, stack.Pop()), nil
-		} else if len(*stack) >= 2 {
+			if stack.Peek() == nil {
+				return nil, ErrOperandMissing
+			} else {
+				return newUnaryExpr(op, stack.Pop()), nil
+			}
+		} else {
 			b := stack.Pop()
 			a := stack.Pop()
+			if a == nil || b == nil {
+				return nil, ErrOperandMissing
+			}
 			return newBinaryExpr(op, a, b)
-		} else {
-			return nil, ErrOperandMissing
 		}
 	} else {
+		// Should never happen, bad operators are filtered in tokenizer
 		return nil, ErrBadOp
 	}
 }

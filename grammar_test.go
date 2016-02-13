@@ -2,6 +2,8 @@ package expr
 
 import (
 	"fmt"
+	"log"
+	"math/rand"
 	"testing"
 )
 
@@ -18,6 +20,7 @@ func TestTokenize(t *testing.T) {
 		"2+-3":      {"2", "+", "-u", "3"},
 		"2--3":      {"2", "-", "-u", "3"},
 		"-(-2)":     {"-u", "(", "-u", "2", ")"},
+		"---2":      {"-u", "-u", "-u", "2"},
 		"foo":       {"foo"},
 		"1>2":       {"1", ">", "2"},
 		"1>-2":      {"1", ">", "-u", "2"},
@@ -30,7 +33,7 @@ func TestTokenize(t *testing.T) {
 	} {
 		if tokens, err := tokenize([]rune(s)); err != nil {
 			if parts != nil {
-				t.Error(err)
+				t.Error(err, s)
 			}
 		} else if len(tokens) != len(parts) {
 			t.Error(tokens, parts)
@@ -82,11 +85,33 @@ func TestParse(t *testing.T) {
 
 		"2+add3(3, 7, 9)":             21,
 		"2+add3(3, add3(1, 2, 3), 9)": 20,
+
+		")+(": 0,
 	} {
 		if e, err := Parse(input, env, funcs); err != nil {
-			t.Error(err)
+			t.Error(input, err)
 		} else if n := e.Eval(); n != result {
 			t.Error(n, result)
+		}
+	}
+}
+
+func XTestParseFuzz(t *testing.T) {
+	env := map[string]Var{}
+	funcs := map[string]Func{
+		"f": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+			return 1
+		}),
+	}
+	sym := "()+,1x>=f*"
+	for i := 0; i < 40000; i++ {
+		s := ""
+		l := rand.Intn(10)
+		for x := 0; x < l; x++ {
+			s = s + string(sym[rand.Intn(len(sym))])
+		}
+		if e, err := Parse(s, env, funcs); err == nil {
+			log.Println(s, e)
 		}
 	}
 }
@@ -98,16 +123,31 @@ func TestParseError(t *testing.T) {
 			return args[0].Eval() + 1
 		}),
 	}
+
 	for input, e := range map[string]error{
 		"(":   ErrParen,
 		")":   ErrParen,
+		"),":  ErrParen,
 		"2=3": ErrBadAssignment,
 		"2@3": ErrBadOp,
 
 		"plusone": ErrBadCall,
+
+		"1x":  ErrOperandMissing,
+		"1 x": ErrOperandMissing,
+		"1 1": ErrOperandMissing,
+
+		"2+":  ErrOperandMissing,
+		"+2":  ErrOperandMissing,
+		"+":   ErrOperandMissing,
+		"-":   ErrOperandMissing,
+		"1++": ErrOperandMissing,
+		"+(":  ErrOperandMissing,
+
+		"+,": ErrOperandMissing,
 	} {
 		if expr, err := Parse(input, env, funcs); err != e {
-			t.Error(e, err, expr)
+			t.Error(e, err, expr, input)
 		}
 	}
 }
