@@ -6,12 +6,43 @@ import (
 )
 
 func TestTokenize(t *testing.T) {
-	// TODO write actual tests
-	t.Log(tokenize([]rune("2+3/234.0")))
-	t.Log(tokenize([]rune("-2+3")))
-	t.Log(tokenize([]rune("-(-2)")))
-	t.Log(tokenize([]rune("a=b(2,3),0")))
-	t.Log(tokenize([]rune("4*(2+8)*4/2")))
+	// Let's preter there is no "&" operator, but there is "&&"
+	defer func() {
+		ops["&"] = bitwiseAnd
+	}()
+	delete(ops, "&")
+
+	for s, parts := range map[string][]string{
+		"2":         {"2"},
+		"2+3/234.0": {"2", "+", "3", "/", "234.0"},
+		"2+-3":      {"2", "+", "-u", "3"},
+		"2--3":      {"2", "-", "-u", "3"},
+		"-(-2)":     {"-u", "(", "-u", "2", ")"},
+		"foo":       {"foo"},
+		"1>2":       {"1", ">", "2"},
+		"1>-2":      {"1", ">", "-u", "2"},
+		"1>>2":      {"1", ">>", "2"},
+		"1>>-2":     {"1", ">>", "-u", "2"},
+		"1>>!2":     {"1", ">>", "!", "2"},
+		"1&&2":      {"1", "&&", "2"},
+		"1&&":       {"1", "&&"},
+		"1&&&":      nil, // This should return an error: 'no such operator &'
+	} {
+		if tokens, err := tokenize([]rune(s)); err != nil {
+			if parts != nil {
+				t.Error(err)
+			}
+		} else if len(tokens) != len(parts) {
+			t.Error(tokens, parts)
+		} else {
+			for i, tok := range tokens {
+				if tok != parts[i] {
+					t.Error(tokens, parts)
+					break
+				}
+			}
+		}
+	}
 }
 
 func TestParse(t *testing.T) {
