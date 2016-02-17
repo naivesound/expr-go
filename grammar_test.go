@@ -50,7 +50,7 @@ func TestTokenize(t *testing.T) {
 
 func TestParse(t *testing.T) {
 	env := map[string]Var{
-		"x": NewVarExpr(5),
+		"x": NewVar(5),
 	}
 	funcs := map[string]Func{
 		"add3": NewFunc(func(args FuncArgs, env FuncEnv) Num {
@@ -154,7 +154,7 @@ func TestParseError(t *testing.T) {
 
 func TestExprString(t *testing.T) {
 	env := map[string]Var{
-		"x": NewVarExpr(5),
+		"x": NewVar(5),
 	}
 	funcs := map[string]Func{
 		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {

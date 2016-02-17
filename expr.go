@@ -102,12 +102,13 @@ func (e *constExpr) String() string {
 type Var interface {
 	Expr
 	Set(value Num)
+	Get() Num
 }
 type varExpr struct {
 	value Num
 }
 
-func NewVarExpr(value Num) Var {
+func NewVar(value Num) Var {
 	return &varExpr{value: value}
 }
 func (e *varExpr) Eval() Num {
@@ -115,6 +116,9 @@ func (e *varExpr) Eval() Num {
 }
 func (e *varExpr) Set(value Num) {
 	e.value = value
+}
+func (e *varExpr) Get() Num {
+	return e.value
 }
 func (e *varExpr) String() string {
 	return fmt.Sprintf("{%v}", e.value)
@@ -463,7 +467,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				if v, ok := vars[token]; ok {
 					es.Push(v)
 				} else {
-					v = NewVarExpr(0)
+					v = NewVar(0)
 					vars[token] = v
 					es.Push(v)
 				}

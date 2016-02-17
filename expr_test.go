@@ -9,8 +9,8 @@ func TestConstExpr(t *testing.T) {
 	}
 }
 
-func TestVarExpr(t *testing.T) {
-	e := NewVarExpr(3)
+func TestVar(t *testing.T) {
+	e := NewVar(3)
 	if n := e.Eval(); n != 3 {
 		t.Error(n)
 	}
@@ -26,7 +26,7 @@ func TestFuncExpr(t *testing.T) {
 		return env["accum"]
 	})
 	two := &constExpr{value: 2}
-	x := NewVarExpr(0)
+	x := NewVar(0)
 	sum := f.Bind([]Expr{two})
 	sumvar := f.Bind([]Expr{x})
 
@@ -57,8 +57,8 @@ func TestFuncExpr(t *testing.T) {
 func TestLastArgFunc(t *testing.T) {
 	args := []Expr{
 		&constExpr{value: 2},
-		NewVarExpr(3),
-		NewVarExpr(7),
+		NewVar(3),
+		NewVar(7),
 	}
 	f := lastArgFunc.Bind(args)
 	if n := f.Eval(); n != 7 {
@@ -97,9 +97,9 @@ func TestBinaryExpr(t *testing.T) {
 		&binaryExpr{greaterThan, &constExpr{5}, &constExpr{3}}:     1,
 		&binaryExpr{greaterOrEquals, &constExpr{9}, &constExpr{4}}: 1,
 		&binaryExpr{equals, &constExpr{5}, &constExpr{3}}:          0,
-		&binaryExpr{equals, &constExpr{5}, NewVarExpr(5)}:          1,
+		&binaryExpr{equals, &constExpr{5}, NewVar(5)}:              1,
 		&binaryExpr{notEquals, &constExpr{9}, &constExpr{0}}:       1,
-		&binaryExpr{notEquals, &constExpr{5}, NewVarExpr(5)}:       0,
+		&binaryExpr{notEquals, &constExpr{5}, NewVar(5)}:           0,
 
 		&binaryExpr{bitwiseAnd, &constExpr{10}, &constExpr{7}}: 2,
 		&binaryExpr{bitwiseOr, &constExpr{9}, &constExpr{4}}:   13,
@@ -108,7 +108,7 @@ func TestBinaryExpr(t *testing.T) {
 		&binaryExpr{logicalAnd, &constExpr{9}, &constExpr{4}}: 1,
 		&binaryExpr{logicalOr, &constExpr{9}, &constExpr{4}}:  1,
 
-		&binaryExpr{assign, NewVarExpr(0), &constExpr{4}}: 4,
+		&binaryExpr{assign, NewVar(0), &constExpr{4}}: 4,
 	} {
 		if n := e.Eval(); n != res {
 			t.Error(n, res)
