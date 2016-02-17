@@ -26,8 +26,8 @@ const (
 	unaryMinus arithOp = iota + 1
 	unaryLogicalNot
 	unaryBitwiseNot
-	unarySqrt
 
+	power
 	multiply
 	divide
 	remainder
@@ -56,8 +56,8 @@ const (
 )
 
 var ops = map[string]arithOp{
-	"-u": unaryMinus, "!": unaryLogicalNot, "~": unaryBitwiseNot, "√": unarySqrt,
-	"*": multiply, "/": divide, "%": remainder,
+	"-u": unaryMinus, "!": unaryLogicalNot, "^u": unaryBitwiseNot,
+	"**": power, "*": multiply, "/": divide, "%": remainder,
 	"+": plus, "-": minus,
 	"<<": shl, ">>": shr,
 	"<": lessThan, "<=": lessOrEquals, ">": greaterThan, ">=": greaterOrEquals,
@@ -68,7 +68,7 @@ var ops = map[string]arithOp{
 }
 
 func isUnary(op arithOp) bool {
-	return op >= unaryMinus && op <= unarySqrt
+	return op >= unaryMinus && op <= unaryBitwiseNot
 }
 func isLeftAssoc(op arithOp) bool {
 	return !isUnary(op) && op != assign
@@ -186,8 +186,6 @@ func (e *unaryExpr) Eval() (res Num) {
 		res = Num(^int64(e.arg.Eval()))
 	case unaryLogicalNot:
 		res = boolNum(e.arg.Eval() == 0)
-	case unarySqrt:
-		res = Num(math.Sqrt(float64(e.arg.Eval())))
 	}
 	return res
 }
@@ -212,6 +210,8 @@ func newBinaryExpr(op arithOp, a, b Expr) (Expr, error) {
 
 func (e *binaryExpr) Eval() (res Num) {
 	switch e.op {
+	case power:
+		res = Num(math.Pow(float64(e.a.Eval()), float64(e.b.Eval())))
 	case multiply:
 		res = e.a.Eval() * e.b.Eval()
 	case divide:
@@ -251,9 +251,17 @@ func (e *binaryExpr) Eval() (res Num) {
 	case bitwiseOr:
 		return Num(int64(e.a.Eval()) | int64(e.b.Eval()))
 	case logicalAnd:
-		res = boolNum(e.a.Eval() != 0 && e.b.Eval() != 0)
+		if a := e.a.Eval(); a != 0 {
+			if b := e.b.Eval(); b != 0 {
+				res = b
+			}
+		}
 	case logicalOr:
-		res = boolNum(e.a.Eval() != 0 || e.b.Eval() != 0)
+		if a := e.a.Eval(); a != 0 {
+			res = a
+		} else if b := e.b.Eval(); b != 0 {
+			res = b
+		}
 	case assign:
 		res = e.b.Eval()
 		e.a.(*varExpr).Set(res)
@@ -289,14 +297,13 @@ func tokenize(input []rune) (tokens []string, err error) {
 					c = 0
 				}
 			}
-		} else if c == '-' {
+		} else if c == '-' || c == '^' {
 			// Minus, unary or binary
 			if expectVal {
-				expectVal = true
-				tok = append(tok, '-', 'u')
+				tok = append(tok, c, 'u')
 			} else {
 				expectVal = true
-				tok = append(tok, '-')
+				tok = append(tok, c)
 			}
 			pos++
 		} else if unicode.IsLetter(c) {

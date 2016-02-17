@@ -69,22 +69,26 @@ func TestLastArgFunc(t *testing.T) {
 func TestUnaryExpr(t *testing.T) {
 	for e, res := range map[Expr]Num{
 		newUnaryExpr(unaryMinus, &constExpr{5}):      -5,
-		newUnaryExpr(unarySqrt, &constExpr{9}):       3,
 		newUnaryExpr(unaryBitwiseNot, &constExpr{9}): -10,
 		newUnaryExpr(unaryLogicalNot, &constExpr{9}): 0,
 		newUnaryExpr(unaryLogicalNot, &constExpr{0}): 1,
 	} {
 		if n := e.Eval(); n != res {
-			t.Error(n, res)
+			t.Error(e, n, res)
 		}
 	}
 }
 
 func TestBinaryExpr(t *testing.T) {
 	for e, res := range map[Expr]Num{
-		&binaryExpr{multiply, &constExpr{9}, &constExpr{4}}:  36,
-		&binaryExpr{divide, &constExpr{9}, &constExpr{4}}:    9 / 4.0,
-		&binaryExpr{remainder, &constExpr{9}, &constExpr{4}}: 1,
+		&binaryExpr{power, &constExpr{9}, &constExpr{4}}:      6561,
+		&binaryExpr{multiply, &constExpr{9}, &constExpr{4}}:   36,
+		&binaryExpr{divide, &constExpr{9}, &constExpr{4}}:     9.0 / 4.0,
+		&binaryExpr{remainder, &constExpr{9}, &constExpr{4}}:  1,
+		&binaryExpr{remainder, &constExpr{9}, &constExpr{9}}:  0,
+		&binaryExpr{remainder, &constExpr{9}, &constExpr{0}}:  0,
+		&binaryExpr{remainder, &constExpr{-9}, &constExpr{9}}: 0,
+		&binaryExpr{remainder, &constExpr{-9}, &constExpr{8}}: -1,
 
 		&binaryExpr{plus, &constExpr{5}, &constExpr{3}}:  8,
 		&binaryExpr{minus, &constExpr{9}, &constExpr{4}}: 5,
@@ -105,13 +109,18 @@ func TestBinaryExpr(t *testing.T) {
 		&binaryExpr{bitwiseOr, &constExpr{9}, &constExpr{4}}:   13,
 		&binaryExpr{bitwiseXor, &constExpr{9}, &constExpr{2}}:  11,
 
-		&binaryExpr{logicalAnd, &constExpr{9}, &constExpr{4}}: 1,
-		&binaryExpr{logicalOr, &constExpr{9}, &constExpr{4}}:  1,
+		// Returns last argument if true, or 0 if false
+		&binaryExpr{logicalAnd, &constExpr{9}, &constExpr{4}}: 4,
+		&binaryExpr{logicalAnd, &constExpr{9}, &constExpr{0}}: 0,
+		// Returns first argument if true, or second if false
+		&binaryExpr{logicalOr, &constExpr{3}, &constExpr{4}}: 3,
+		&binaryExpr{logicalOr, &constExpr{0}, &constExpr{4}}: 4,
+		&binaryExpr{logicalOr, &constExpr{0}, &constExpr{0}}: 0,
 
 		&binaryExpr{assign, NewVar(0), &constExpr{4}}: 4,
 	} {
 		if n := e.Eval(); n != res {
-			t.Error(n, res)
+			t.Error(e, n, res)
 		}
 	}
 }
