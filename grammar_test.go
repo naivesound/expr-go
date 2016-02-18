@@ -98,6 +98,8 @@ func TestParse(t *testing.T) {
 		"nop()":    0,
 		"nop(1)":   0,
 		"nop((1))": 0,
+
+		"w=(w!=0)": 0,
 	} {
 		if e, err := Parse(input, env, funcs); err != nil {
 			t.Error(input, e, input, err)

@@ -327,42 +327,37 @@ func tokenize(input []rune) (tokens []string, err error) {
 			} else {
 				return nil, ErrParen
 			}
-		} else if c == '-' || c == '^' || c == '!' {
-			// Minus, unary or binary
-			if expected&tokOp == 0 {
-				tok = append(tok, c, 'u')
-				expected = tokNumber | tokWord | tokOpen
-			} else {
-				tok = append(tok, c)
-				expected = tokNumber | tokWord | tokOpen
-			}
-			pos++
 		} else {
 			if expected&tokOp == 0 {
-				return nil, ErrOperandMissing
+				if c != '-' && c != '^' && c != '!' {
+					return nil, ErrOperandMissing
+				}
+				tok = append(tok, c, 'u')
+				pos++
+			} else {
+				var lastOp string
+				for !unicode.IsLetter(c) && !unicode.IsNumber(c) && !unicode.IsSpace(c) &&
+					c != '_' && c != '(' && c != ')' && pos < len(input) {
+					if _, ok := ops[string(tok)+string(input[pos])]; ok {
+						tok = append(tok, input[pos])
+						lastOp = string(tok)
+					} else if lastOp == "" {
+						tok = append(tok, input[pos])
+					} else {
+						break
+					}
+					pos++
+					if pos < len(input) {
+						c = input[pos]
+					} else {
+						c = 0
+					}
+				}
+				if lastOp == "" {
+					return nil, ErrBadOp
+				}
 			}
 			expected = tokNumber | tokWord | tokOpen
-			var lastOp string
-			for !unicode.IsLetter(c) && !unicode.IsNumber(c) && !unicode.IsSpace(c) &&
-				c != '_' && c != '(' && c != ')' && c != '^' && c != '-' && pos < len(input) {
-				if _, ok := ops[string(tok)+string(input[pos])]; ok {
-					tok = append(tok, input[pos])
-					lastOp = string(tok)
-				} else if lastOp == "" {
-					tok = append(tok, input[pos])
-				} else {
-					break
-				}
-				pos++
-				if pos < len(input) {
-					c = input[pos]
-				} else {
-					c = 0
-				}
-			}
-			if lastOp == "" {
-				return nil, ErrBadOp
-			}
 		}
 		tokens = append(tokens, string(tok))
 	}
