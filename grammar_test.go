@@ -53,6 +53,9 @@ func TestParse(t *testing.T) {
 		"x": NewVar(5),
 	}
 	funcs := map[string]Func{
+		"nop": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+			return 0
+		}),
 		"add3": NewFunc(func(args FuncArgs, env FuncEnv) Num {
 			if len(args) == 3 {
 				return args[0].Eval() + args[1].Eval() + args[2].Eval()
@@ -91,6 +94,10 @@ func TestParse(t *testing.T) {
 
 		"2+add3(3, 7, 9)":             21,
 		"2+add3(3, add3(1, 2, 3), 9)": 20,
+
+		"nop()":    0,
+		"nop(1)":   0,
+		"nop((1))": 0,
 	} {
 		if e, err := Parse(input, env, funcs); err != nil {
 			t.Error(input, e, input, err)
@@ -112,7 +119,7 @@ func TestParseFuzz(t *testing.T) {
 	}
 	sym := "()+,1x>=f*"
 	set := map[string]bool{}
-	for i := 0; i < 40000; i++ {
+	for i := 0; i < 100000; i++ {
 		s := ""
 		l := rand.Intn(10)
 		for x := 0; x < l; x++ {
@@ -130,27 +137,33 @@ func TestParseFuzz(t *testing.T) {
 func TestParseError(t *testing.T) {
 	env := map[string]Var{}
 	funcs := map[string]Func{
-		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+		"f": NewFunc(func(args FuncArgs, env FuncEnv) Num {
 			return args[0].Eval() + 1
 		}),
 	}
 
 	for input, e := range map[string]error{
-		"(":   ErrParen,
-		")":   ErrParen,
-		"),":  ErrParen,
-		")+(": ErrParen,
-		"+(":  ErrOperandMissing,
-		"2=3": ErrBadAssignment,
-		"2@3": ErrBadOp,
+		"(":    ErrParen,
+		")":    ErrParen,
+		"),":   ErrParen,
+		")+(":  ErrParen,
+		"+(":   ErrOperandMissing,
+		"f(":   ErrBadCall,
+		"1=x,": ErrBadVar,
+		"1=x)": ErrBadVar,
+		"1)":   ErrParen,
+		"2=3":  ErrBadVar,
+		"2@3":  ErrBadOp,
 
-		"1()":           ErrParen,
-		"xfx((f1))":     ErrBadOp,
-		",plusone(x)":   ErrOperandMissing,
-		"plusone(,x)":   ErrOperandMissing,
-		"plusone(x=)>1": ErrParen,
+		"1()":     ErrParen,
+		",f(x)":   ErrOperandMissing,
+		",":       ErrOperandMissing,
+		"1,,2":    ErrOperandMissing,
+		"f(,x)":   ErrOperandMissing,
+		"f(x=)>1": ErrParen,
 
-		"plusone": ErrBadCall,
+		"f":   ErrBadCall,
+		"f+1": ErrBadCall,
 
 		"1x":  ErrUnexpectedIdentifier,
 		"1 x": ErrUnexpectedIdentifier,
@@ -162,7 +175,8 @@ func TestParseError(t *testing.T) {
 		"-":   ErrOperandMissing,
 		"1++": ErrOperandMissing,
 
-		"+,": ErrOperandMissing,
+		"+,":        ErrOperandMissing,
+		"xfx((f1))": ErrBadCall,
 	} {
 		if expr, err := Parse(input, env, funcs); err != e {
 			t.Error(e, err, expr, input)

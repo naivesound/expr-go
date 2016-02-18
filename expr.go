@@ -15,11 +15,10 @@ var (
 	ErrUnexpectedNumber     = errors.New("unexpected number")
 	ErrUnexpectedIdentifier = errors.New("unexpected identifier")
 
-	ErrBadCall         = errors.New("function call expected")
-	ErrBadAssignment   = errors.New("variable expected in assignment")
-	ErrBadOp           = errors.New("unknown operator or function")
-	ErrOperandMissing  = errors.New("missing operand")
-	ErrOperatorMissing = errors.New("missing operator")
+	ErrBadCall        = errors.New("function call expected")
+	ErrBadVar         = errors.New("variable expected in assignment")
+	ErrBadOp          = errors.New("unknown operator or function")
+	ErrOperandMissing = errors.New("missing operand")
 )
 
 // Supported arithmetic operations
@@ -198,7 +197,7 @@ type binaryExpr struct {
 func newBinaryExpr(op arithOp, a, b Expr) (Expr, error) {
 	if op == assign {
 		if _, ok := a.(*varExpr); !ok {
-			return nil, ErrBadAssignment
+			return nil, ErrBadVar
 		}
 	}
 	return &binaryExpr{op: op, a: a, b: b}, nil
@@ -309,7 +308,7 @@ func tokenize(input []rune) (tokens []string, err error) {
 				return nil, ErrUnexpectedIdentifier
 			}
 			expected = tokOp | tokOpen | tokClose
-			for unicode.IsLetter(c) || unicode.IsNumber(c) || c == '_' && pos < len(input) {
+			for (unicode.IsLetter(c) || unicode.IsNumber(c) || c == '_') && pos < len(input) {
 				tok = append(tok, input[pos])
 				pos++
 				if pos < len(input) {
@@ -416,23 +415,34 @@ func (es *exprStack) Pop() Expr {
 	}
 }
 
+const (
+	parenAllowed = iota
+	parenExpected
+	parenForbidden
+)
+
 func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, error) {
 	os := stringStack{}
 	es := exprStack{}
 
-	expectArgs := false
-
+	paren := parenAllowed
 	if tokens, err := tokenize([]rune(input)); err != nil {
 		return nil, err
 	} else {
 		for _, token := range tokens {
+			parenNext := parenAllowed
 			if token == "(" {
-				expectArgs = false
-				os.Push("(")
-			} else if expectArgs {
+				if paren == parenExpected {
+					os.Push("{")
+				} else if paren == parenAllowed {
+					os.Push("(")
+				} else {
+					return nil, ErrBadCall
+				}
+			} else if paren == parenExpected {
 				return nil, ErrBadCall
 			} else if token == ")" {
-				for len(os) > 0 && os.Peek() != "(" {
+				for len(os) > 0 && os.Peek() != "(" && os.Peek() != "{" {
 					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
 						return nil, err
 					} else {
@@ -442,21 +452,20 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				if len(os) == 0 {
 					return nil, ErrParen
 				}
-				os.Pop() // remove open paren
-				if len(os) > 0 {
-					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
-						return nil, err
-					} else {
-						es.Push(expr)
-					}
+				if open := os.Pop(); open == "{" {
+					f := funcs[os.Pop()]
+					args := list(es.Pop())
+					es.Push(f.Bind(args))
 				}
+				parenNext = parenForbidden
 			} else if n, err := strconv.ParseFloat(token, 64); err == nil {
 				// Number
 				es.Push(&constExpr{value: Num(n)})
+				parenNext = parenForbidden
 			} else if _, ok := funcs[token]; ok {
 				// Function
 				os.Push(token)
-				expectArgs = true
+				parenNext = parenExpected
 			} else if op, ok := ops[token]; ok {
 				o2 := os.Peek()
 				for ops[o2] != 0 && ((isLeftAssoc(op) && op >= ops[o2]) || op > ops[o2]) {
@@ -478,7 +487,12 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 					vars[token] = v
 					es.Push(v)
 				}
+				parenNext = parenForbidden
 			}
+			paren = parenNext
+		}
+		if paren == parenExpected {
+			return nil, ErrBadCall
 		}
 		for len(os) > 0 {
 			op := os.Pop()
@@ -501,17 +515,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 }
 
 func bind(name string, funcs map[string]Func, stack *exprStack) (Expr, error) {
-	if f, ok := funcs[name]; ok {
-		args := []Expr{}
-		if len(*stack) > 0 {
-			if stack.Peek() != nil {
-				args = list(stack.Pop())
-			}
-		} else {
-			return nil, ErrBadCall
-		}
-		return f.Bind(args), nil
-	} else if op, ok := ops[name]; ok {
+	if op, ok := ops[name]; ok {
 		if isUnary(op) {
 			if stack.Peek() == nil {
 				return nil, ErrOperandMissing
@@ -527,12 +531,14 @@ func bind(name string, funcs map[string]Func, stack *exprStack) (Expr, error) {
 			return newBinaryExpr(op, a, b)
 		}
 	} else {
-		return nil, ErrBadOp
+		return nil, ErrBadCall
 	}
 }
 
 func list(e Expr) []Expr {
-	if b, ok := e.(*binaryExpr); ok && b.op == comma {
+	if e == nil {
+		return []Expr{}
+	} else if b, ok := e.(*binaryExpr); ok && b.op == comma {
 		return append([]Expr{b.a}, list(b.b)...)
 	} else {
 		return []Expr{e}
