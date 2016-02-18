@@ -11,12 +11,15 @@ import (
 type Num float64
 
 var (
+	ErrParen                = errors.New("parenthesis mismatch")
+	ErrUnexpectedNumber     = errors.New("unexpected number")
+	ErrUnexpectedIdentifier = errors.New("unexpected identifier")
+
 	ErrBadCall         = errors.New("function call expected")
 	ErrBadAssignment   = errors.New("variable expected in assignment")
 	ErrBadOp           = errors.New("unknown operator or function")
 	ErrOperandMissing  = errors.New("missing operand")
 	ErrOperatorMissing = errors.New("missing operator")
-	ErrParen           = errors.New("parenthesis mismatch")
 )
 
 // Supported arithmetic operations
@@ -53,10 +56,11 @@ const (
 	logicalOr
 
 	assign
+	comma
 )
 
 var ops = map[string]arithOp{
-	"-u": unaryMinus, "!": unaryLogicalNot, "^u": unaryBitwiseNot,
+	"-u": unaryMinus, "!u": unaryLogicalNot, "^u": unaryBitwiseNot,
 	"**": power, "*": multiply, "/": divide, "%": remainder,
 	"+": plus, "-": minus,
 	"<<": shl, ">>": shr,
@@ -64,14 +68,14 @@ var ops = map[string]arithOp{
 	"==": equals, "!=": notEquals,
 	"&": bitwiseAnd, "^": bitwiseXor, "|": bitwiseOr,
 	"&&": logicalAnd, "||": logicalOr,
-	"=": assign,
+	"=": assign, ",": comma,
 }
 
 func isUnary(op arithOp) bool {
 	return op >= unaryMinus && op <= unaryBitwiseNot
 }
 func isLeftAssoc(op arithOp) bool {
-	return !isUnary(op) && op != assign
+	return !isUnary(op) && op != assign && op != power && op != comma
 }
 func boolNum(b bool) Num {
 	if b {
@@ -159,14 +163,6 @@ func (e *simpleFunc) Eval() Num {
 func (e *simpleFunc) String() string {
 	return fmt.Sprintf("fn%v", e.args)
 }
-
-var lastArgFunc = NewFunc(func(args FuncArgs, env FuncEnv) Num {
-	var result Num
-	for _, arg := range args {
-		result = arg.Eval()
-	}
-	return result
-})
 
 // Operator expression returns the result of the operator applied to 1 or 2 arguments
 type unaryExpr struct {
@@ -265,6 +261,9 @@ func (e *binaryExpr) Eval() (res Num) {
 	case assign:
 		res = e.b.Eval()
 		e.a.(*varExpr).Set(res)
+	case comma:
+		e.a.Eval()
+		res = e.b.Eval()
 	}
 	return res
 }
@@ -273,9 +272,17 @@ func (e *binaryExpr) String() string {
 	return fmt.Sprintf("<%v>(%v, %v)", e.op, e.a, e.b)
 }
 
+const (
+	tokNumber = 1 << iota
+	tokWord
+	tokOp
+	tokOpen
+	tokClose
+)
+
 func tokenize(input []rune) (tokens []string, err error) {
 	pos := 0
-	expectVal := true
+	expected := tokOpen | tokNumber | tokWord
 	for pos < len(input) {
 		tok := []rune{}
 		c := input[pos]
@@ -284,10 +291,10 @@ func tokenize(input []rune) (tokens []string, err error) {
 			continue
 		}
 		if unicode.IsNumber(c) {
-			if !expectVal {
-				return nil, ErrOperandMissing
+			if expected&tokNumber == 0 {
+				return nil, ErrUnexpectedNumber
 			}
-			expectVal = false
+			expected = tokOp | tokClose
 			for (c == '.' || unicode.IsNumber(c)) && pos < len(input) {
 				tok = append(tok, input[pos])
 				pos++
@@ -297,20 +304,11 @@ func tokenize(input []rune) (tokens []string, err error) {
 					c = 0
 				}
 			}
-		} else if c == '-' || c == '^' {
-			// Minus, unary or binary
-			if expectVal {
-				tok = append(tok, c, 'u')
-			} else {
-				expectVal = true
-				tok = append(tok, c)
-			}
-			pos++
 		} else if unicode.IsLetter(c) {
-			if !expectVal {
-				return nil, ErrOperandMissing
+			if expected&tokWord == 0 {
+				return nil, ErrUnexpectedIdentifier
 			}
-			expectVal = false
+			expected = tokOp | tokOpen | tokClose
 			for unicode.IsLetter(c) || unicode.IsNumber(c) || c == '_' && pos < len(input) {
 				tok = append(tok, input[pos])
 				pos++
@@ -320,15 +318,34 @@ func tokenize(input []rune) (tokens []string, err error) {
 					c = 0
 				}
 			}
-		} else if c == '(' || c == ')' || c == ',' {
-			expectVal = (c == '(' || c == ',')
+		} else if c == '(' || c == ')' {
 			tok = append(tok, c)
 			pos++
+			if c == '(' && (expected&tokOpen) != 0 {
+				expected = tokNumber | tokWord | tokOpen | tokClose
+			} else if c == ')' && (expected&tokClose) != 0 {
+				expected = tokOp | tokClose
+			} else {
+				return nil, ErrParen
+			}
+		} else if c == '-' || c == '^' || c == '!' {
+			// Minus, unary or binary
+			if expected&tokOp == 0 {
+				tok = append(tok, c, 'u')
+				expected = tokNumber | tokWord | tokOpen
+			} else {
+				tok = append(tok, c)
+				expected = tokNumber | tokWord | tokOpen
+			}
+			pos++
 		} else {
-			expectVal = true
+			if expected&tokOp == 0 {
+				return nil, ErrOperandMissing
+			}
+			expected = tokNumber | tokWord | tokOpen
 			var lastOp string
 			for !unicode.IsLetter(c) && !unicode.IsNumber(c) && !unicode.IsSpace(c) &&
-				c != '_' && c != '(' && c != ')' && c != ',' && c != '-' && pos < len(input) {
+				c != '_' && c != '(' && c != ')' && c != '^' && c != '-' && pos < len(input) {
 				if _, ok := ops[string(tok)+string(input[pos])]; ok {
 					tok = append(tok, input[pos])
 					lastOp = string(tok)
@@ -405,7 +422,6 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 
 	expectArgs := false
 
-	input = "(" + input + ")" // To allow multiple return values
 	if tokens, err := tokenize([]rune(input)); err != nil {
 		return nil, err
 	} else {
@@ -413,7 +429,6 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 			if token == "(" {
 				expectArgs = false
 				os.Push("(")
-				es.Push(nil)
 			} else if expectArgs {
 				return nil, ErrBadCall
 			} else if token == ")" {
@@ -427,16 +442,13 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				if len(os) == 0 {
 					return nil, ErrParen
 				}
-				os.Pop()
-				if len(os) > 0 && funcs[os.Peek()] != nil {
+				os.Pop() // remove open paren
+				if len(os) > 0 {
 					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
-						// Should never happen XXX why?
 						return nil, err
 					} else {
 						es.Push(expr)
 					}
-				} else {
-					es.Push(lastArgFunc.Bind(parseArgs(&es)))
 				}
 			} else if n, err := strconv.ParseFloat(token, 64); err == nil {
 				// Number
@@ -445,18 +457,6 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				// Function
 				os.Push(token)
 				expectArgs = true
-			} else if token == "," {
-				for len(os) > 0 && os.Peek() != "(" {
-					if expr, err := bind(os.Pop(), funcs, &es); err != nil {
-						return nil, err
-					} else {
-						es.Push(expr)
-					}
-				}
-				if len(os) == 0 {
-					// Should never happen as long as we wrap input string in extra parenthesis
-					return nil, ErrParen
-				}
 			} else if op, ok := ops[token]; ok {
 				o2 := os.Peek()
 				for ops[o2] != 0 && ((isLeftAssoc(op) && op >= ops[o2]) || op > ops[o2]) {
@@ -492,7 +492,6 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 			}
 		}
 		if len(es) == 0 {
-			// Should never happen as long as we wrap input in extra parenthesis
 			return &constExpr{}, nil
 		} else {
 			e := es.Pop()
@@ -503,7 +502,15 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 
 func bind(name string, funcs map[string]Func, stack *exprStack) (Expr, error) {
 	if f, ok := funcs[name]; ok {
-		return f.Bind(parseArgs(stack)), nil
+		args := []Expr{}
+		if len(*stack) > 0 {
+			if stack.Peek() != nil {
+				args = list(stack.Pop())
+			}
+		} else {
+			return nil, ErrBadCall
+		}
+		return f.Bind(args), nil
 	} else if op, ok := ops[name]; ok {
 		if isUnary(op) {
 			if stack.Peek() == nil {
@@ -520,18 +527,14 @@ func bind(name string, funcs map[string]Func, stack *exprStack) (Expr, error) {
 			return newBinaryExpr(op, a, b)
 		}
 	} else {
-		// Should never happen, bad operators are filtered in tokenizer
 		return nil, ErrBadOp
 	}
 }
 
-func parseArgs(stack *exprStack) []Expr {
-	args := []Expr{}
-	for len(*stack) > 0 && stack.Peek() != nil {
-		args = append([]Expr{stack.Pop()}, args...)
+func list(e Expr) []Expr {
+	if b, ok := e.(*binaryExpr); ok && b.op == comma {
+		return append([]Expr{b.a}, list(b.b)...)
+	} else {
+		return []Expr{e}
 	}
-	if len(*stack) > 0 {
-		stack.Pop()
-	}
-	return args
 }

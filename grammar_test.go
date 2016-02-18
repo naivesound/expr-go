@@ -2,7 +2,6 @@ package expr
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"testing"
 )
@@ -26,7 +25,8 @@ func TestTokenize(t *testing.T) {
 		"1>-2":      {"1", ">", "-u", "2"},
 		"1>>2":      {"1", ">>", "2"},
 		"1>>-2":     {"1", ">>", "-u", "2"},
-		"1>>!2":     {"1", ">>", "!", "2"},
+		"1>>!2":     {"1", ">>", "!u", "2"},
+		"1>>^!2":    {"1", ">>", "^u", "!u", "2"},
 		"1&&2":      {"1", "&&", "2"},
 		"1&&":       {"1", "&&"},
 		"1&&&":      nil, // This should return an error: 'no such operator &'
@@ -54,13 +54,18 @@ func TestParse(t *testing.T) {
 	}
 	funcs := map[string]Func{
 		"add3": NewFunc(func(args FuncArgs, env FuncEnv) Num {
-			return args[0].Eval() + args[1].Eval() + args[2].Eval()
+			if len(args) == 3 {
+				return args[0].Eval() + args[1].Eval() + args[2].Eval()
+			} else {
+				return 0
+			}
 		}),
 	}
 	for input, result := range map[string]Num{
-		"":  0,
-		"2": 2,
-		"x": 5,
+		"":    0,
+		"2":   2,
+		"(2)": 2,
+		"x":   5,
 
 		"-2": -2,
 		"^2": -3,
@@ -69,7 +74,7 @@ func TestParse(t *testing.T) {
 
 		"3+2":       5,
 		"3/2":       1.5,
-		"(3/2)|0":   1, // Any bitwise operation will turn it into an int
+		"(3/2)|0":   1, //Any bitwise operation will turn it into an int
 		"2+3/2":     2 + 3/2.0,
 		"4/2+8*4/2": 18,
 
@@ -86,18 +91,16 @@ func TestParse(t *testing.T) {
 
 		"2+add3(3, 7, 9)":             21,
 		"2+add3(3, add3(1, 2, 3), 9)": 20,
-
-		")+(": 0,
 	} {
 		if e, err := Parse(input, env, funcs); err != nil {
-			t.Error(input, err)
+			t.Error(input, e, input, err)
 		} else if n := e.Eval(); n != result {
-			t.Error(n, result)
+			t.Error(input, e, n, result)
 		}
 	}
 }
 
-func XTestParseFuzz(t *testing.T) {
+func TestParseFuzz(t *testing.T) {
 	env := map[string]Var{}
 	funcs := map[string]Func{
 		"f": NewFunc(func(args FuncArgs, env FuncEnv) Num {
@@ -105,6 +108,7 @@ func XTestParseFuzz(t *testing.T) {
 		}),
 	}
 	sym := "()+,1x>=f*"
+	set := map[string]bool{}
 	for i := 0; i < 40000; i++ {
 		s := ""
 		l := rand.Intn(10)
@@ -112,7 +116,10 @@ func XTestParseFuzz(t *testing.T) {
 			s = s + string(sym[rand.Intn(len(sym))])
 		}
 		if e, err := Parse(s, env, funcs); err == nil {
-			log.Println(s, e)
+			if !set[s] {
+				set[s] = true
+				t.Logf("%20s -> %v\n", s, e)
+			}
 		}
 	}
 }
@@ -129,21 +136,28 @@ func TestParseError(t *testing.T) {
 		"(":   ErrParen,
 		")":   ErrParen,
 		"),":  ErrParen,
+		")+(": ErrParen,
+		"+(":  ErrOperandMissing,
 		"2=3": ErrBadAssignment,
 		"2@3": ErrBadOp,
 
+		"1()":           ErrParen,
+		"xfx((f1))":     ErrBadOp,
+		",plusone(x)":   ErrOperandMissing,
+		"plusone(,x)":   ErrOperandMissing,
+		"plusone(x=)>1": ErrParen,
+
 		"plusone": ErrBadCall,
 
-		"1x":  ErrOperandMissing,
-		"1 x": ErrOperandMissing,
-		"1 1": ErrOperandMissing,
+		"1x":  ErrUnexpectedIdentifier,
+		"1 x": ErrUnexpectedIdentifier,
+		"1 1": ErrUnexpectedNumber,
 
 		"2+":  ErrOperandMissing,
 		"+2":  ErrOperandMissing,
 		"+":   ErrOperandMissing,
 		"-":   ErrOperandMissing,
 		"1++": ErrOperandMissing,
-		"+(":  ErrOperandMissing,
 
 		"+,": ErrOperandMissing,
 	} {
@@ -162,8 +176,9 @@ func TestExprString(t *testing.T) {
 			return args[0].Eval() + 1
 		}),
 	}
-	e, _ := Parse("-2+plusone(x)", env, funcs)
-	if s := fmt.Sprintf("%v", e); s != "fn[<8>(<1>(#2), fn[{5}])]" {
-		t.Error(e)
+	if e, err := Parse("-2+plusone(x)", env, funcs); err != nil {
+		t.Error(err)
+	} else if s := fmt.Sprintf("%v", e); s != "<8>(<1>(#2), fn[{5}])" {
+		t.Error(e, s)
 	}
 }

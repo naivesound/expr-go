@@ -18,6 +18,9 @@ func TestVar(t *testing.T) {
 	if n := e.Eval(); n != 5 {
 		t.Error(n)
 	}
+	if n := e.Get(); n != 5 {
+		t.Error(n)
+	}
 }
 
 func TestFuncExpr(t *testing.T) {
@@ -50,18 +53,6 @@ func TestFuncExpr(t *testing.T) {
 	}
 	x.Set(8)
 	if n := sumvar.Eval(); n != 15 {
-		t.Error(n)
-	}
-}
-
-func TestLastArgFunc(t *testing.T) {
-	args := []Expr{
-		&constExpr{value: 2},
-		NewVar(3),
-		NewVar(7),
-	}
-	f := lastArgFunc.Bind(args)
-	if n := f.Eval(); n != 7 {
 		t.Error(n)
 	}
 }
