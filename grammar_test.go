@@ -101,6 +101,9 @@ func TestParse(t *testing.T) {
 }
 
 func TestParseFuzz(t *testing.T) {
+	if testing.Short() {
+		t.Skip("fuzzing test skipped")
+	}
 	env := map[string]Var{}
 	funcs := map[string]Func{
 		"f": NewFunc(func(args FuncArgs, env FuncEnv) Num {
