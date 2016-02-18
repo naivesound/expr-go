@@ -10,5 +10,5 @@ after_success:
   - codecov
 
 script:
- - go test -v ./...
+  - go test -coverprofile=coverage.txt -covermode=atomic
 
