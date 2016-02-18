@@ -1,6 +1,8 @@
 # expr - tiny yet super fast math expression evaluator in Go
 
-[![GoDoc](http://godoc.org/badge.png)](http://godoc.org/github.com/naivesound/expr) [![Build Status](https://travis-ci.org/naivesound/expr.svg?branch=master)](https://travis-ci.org/naivesound/expr) [![codecov.io](https://codecov.io/github/naivesound/expr/coverage.svg?branch=master)](https://codecov.io/github/naivesound/expr?branch=master)
+[![GoDoc](https://godoc.org/github.com/naivesound/expr?status.svg)](https://godoc.org/github.com/naivesound/expr)
+[![Build Status](https://travis-ci.org/naivesound/expr.svg?branch=master)](https://travis-ci.org/naivesound/expr)
+[![codecov.io](https://codecov.io/github/naivesound/expr/coverage.svg?branch=master)](https://codecov.io/github/naivesound/expr?branch=master)
 
 ## Example
 
