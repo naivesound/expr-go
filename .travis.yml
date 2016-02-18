@@ -1,0 +1,14 @@
+language: go
+
+go:
+  - release
+  - tip
+
+before_install:
+  - pip install codecov
+after_success:
+  - codecov
+
+script:
+ - go test -v ./...
+
