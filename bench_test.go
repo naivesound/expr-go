@@ -5,9 +5,9 @@ import "testing"
 func BenchmarkExprParse(b *testing.B) {
 	env := map[string]Var{}
 	funcs := map[string]Func{
-		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {
-			return args[0].Eval() + 1
-		}),
+		"plusone": func(c *FuncContext) Num {
+			return c.Args[0].Eval() + 1
+		},
 	}
 	expr := "x=2+3*(x/(42+plusone(x))),x"
 	for i := 0; i < b.N; i++ {
@@ -18,9 +18,9 @@ func BenchmarkExprParse(b *testing.B) {
 func BenchmarkExprEval(b *testing.B) {
 	env := map[string]Var{}
 	funcs := map[string]Func{
-		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {
-			return args[0].Eval() + 1
-		}),
+		"plusone": func(c *FuncContext) Num {
+			return c.Args[0].Eval() + 1
+		},
 	}
 	expr := "x=2+3*(x/(42+plusone(x))),x"
 	if e, err := Parse(expr, env, funcs); err != nil {

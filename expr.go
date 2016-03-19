@@ -127,40 +127,20 @@ func (e *varExpr) String() string {
 	return fmt.Sprintf("{%v}", e.value)
 }
 
-// Function expression returns the result of the function
-type Func interface {
-	Bind(args []Expr) Expr
+type Func func(f *FuncContext) Num
+
+type FuncContext struct {
+	f    Func
+	Args []Expr
+	Env  interface{}
 }
 
-type FuncEnv map[string]Num
-type FuncArgs []Expr
-
-type EvalFunc func(FuncArgs, FuncEnv) Num
-type funcBinder struct {
-	eval EvalFunc
+func (f *FuncContext) Eval() Num {
+	return f.f(f)
 }
 
-type simpleFunc struct {
-	eval EvalFunc
-	env  FuncEnv
-	args FuncArgs
-}
-
-func NewFunc(eval EvalFunc) Func {
-	return &funcBinder{eval: eval}
-}
-
-func (f *funcBinder) Bind(args []Expr) Expr {
-	env := map[string]Num{}
-	return &simpleFunc{eval: f.eval, args: args, env: env}
-}
-
-func (e *simpleFunc) Eval() Num {
-	return e.eval(e.args, e.env)
-}
-
-func (e *simpleFunc) String() string {
-	return fmt.Sprintf("fn%v", e.args)
+func (f *FuncContext) String() string {
+	return fmt.Sprintf("fn%v", f.Args)
 }
 
 // Operator expression returns the result of the operator applied to 1 or 2 arguments
@@ -450,7 +430,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				if open := os.Pop(); open == "{" {
 					f := funcs[os.Pop()]
 					args := list(es.Pop())
-					es.Push(f.Bind(args))
+					es.Push(&FuncContext{f: f, Args: args})
 				}
 				parenNext = parenForbidden
 			} else if n, err := strconv.ParseFloat(token, 64); err == nil {

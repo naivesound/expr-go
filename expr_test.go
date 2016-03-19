@@ -24,14 +24,19 @@ func TestVar(t *testing.T) {
 }
 
 func TestFuncExpr(t *testing.T) {
-	f := NewFunc(func(args FuncArgs, env FuncEnv) Num {
-		env["accum"] = env["accum"] + args[0].Eval()
-		return env["accum"]
-	})
+	f := func(c *FuncContext) Num {
+		if c.Env == nil {
+			c.Env = 0.0
+		}
+		acc := c.Env.(float64)
+		acc = acc + float64(c.Args[0].Eval())
+		c.Env = acc
+		return Num(acc)
+	}
 	two := &constExpr{value: 2}
 	x := NewVar(0)
-	sum := f.Bind([]Expr{two})
-	sumvar := f.Bind([]Expr{x})
+	sum := &FuncContext{f: f, Args: []Expr{two}}
+	sumvar := &FuncContext{f: f, Args: []Expr{x}}
 
 	if n := sum.Eval(); n != 2 {
 		t.Error(n)

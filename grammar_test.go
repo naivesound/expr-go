@@ -53,16 +53,16 @@ func TestParse(t *testing.T) {
 		"x": NewVar(5),
 	}
 	funcs := map[string]Func{
-		"nop": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+		"nop": func(c *FuncContext) Num {
 			return 0
-		}),
-		"add3": NewFunc(func(args FuncArgs, env FuncEnv) Num {
-			if len(args) == 3 {
-				return args[0].Eval() + args[1].Eval() + args[2].Eval()
+		},
+		"add3": func(c *FuncContext) Num {
+			if len(c.Args) == 3 {
+				return c.Args[0].Eval() + c.Args[1].Eval() + c.Args[2].Eval()
 			} else {
 				return 0
 			}
-		}),
+		},
 	}
 	for input, result := range map[string]Num{
 		"":    0,
@@ -115,9 +115,9 @@ func TestParseFuzz(t *testing.T) {
 	}
 	env := map[string]Var{}
 	funcs := map[string]Func{
-		"f": NewFunc(func(args FuncArgs, env FuncEnv) Num {
+		"f": func(c *FuncContext) Num {
 			return 1
-		}),
+		},
 	}
 	sym := "()+,1x>=f*"
 	set := map[string]bool{}
@@ -139,9 +139,9 @@ func TestParseFuzz(t *testing.T) {
 func TestParseError(t *testing.T) {
 	env := map[string]Var{}
 	funcs := map[string]Func{
-		"f": NewFunc(func(args FuncArgs, env FuncEnv) Num {
-			return args[0].Eval() + 1
-		}),
+		"f": func(c *FuncContext) Num {
+			return c.Args[0].Eval() + 1
+		},
 	}
 
 	for input, e := range map[string]error{
@@ -191,9 +191,9 @@ func TestExprString(t *testing.T) {
 		"x": NewVar(5),
 	}
 	funcs := map[string]Func{
-		"plusone": NewFunc(func(args FuncArgs, env FuncEnv) Num {
-			return args[0].Eval() + 1
-		}),
+		"plusone": func(c *FuncContext) Num {
+			return c.Args[0].Eval() + 1
+		},
 	}
 	if e, err := Parse("-2+plusone(x)", env, funcs); err != nil {
 		t.Error(err)
