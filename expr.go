@@ -132,6 +132,7 @@ type Func func(f *FuncContext) Num
 type FuncContext struct {
 	f    Func
 	Args []Expr
+	Vars map[string]Var
 	Env  interface{}
 }
 
@@ -430,7 +431,7 @@ func Parse(input string, vars map[string]Var, funcs map[string]Func) (Expr, erro
 				if open := os.Pop(); open == "{" {
 					f := funcs[os.Pop()]
 					args := list(es.Pop())
-					es.Push(&FuncContext{f: f, Args: args})
+					es.Push(&FuncContext{f: f, Vars: vars, Args: args})
 				}
 				parenNext = parenForbidden
 			} else if n, err := strconv.ParseFloat(token, 64); err == nil {
