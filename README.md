@@ -24,3 +24,18 @@ result := e.Eval()
 log.Println(result)
 log.Println(vars["y"])
 ```
+
+## Performance
+
+The goal is to speed up frequent evaluations of immutable expressions.
+For example, user enters a formula to calculate some metrics and backend does
+the calculation. Formula itself changes rarely, but is evaluated very often.
+
+On my dual-core laptop the benchmark shows that:
+
+- Parsing expression `x=2+3*(x/(42+plusone(x))),x` takes 14us, evaluation takes **65ns**.
+- Parsing a more complex expression of 280 chars takes 112us, evaluation takes **649ns**.
+- Parsing an even more complex expresison of ~3k chars takes 1ms, evaluation takes **7us**.
+
+This probably means that time grows linearly depending on the formula length
+and the performance is really good for short (human-generated) formulas.
